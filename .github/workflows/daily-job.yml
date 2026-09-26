@@ -1,0 +1,43 @@
+name: OptiBot Daily Scraper & Uploader
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  run-ingestion:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Restore sync state cache
+        uses: actions/cache/restore@v4
+        id: cache-restore
+        with:
+          path: sync_state.json
+          key: optibot-state-${{ github.run_id }}
+          restore-keys: |
+            optibot-state-
+
+      - name: Build Docker Image
+        run: docker build -t optibot-scraper .
+
+      - name: Run Scraper & Uploader
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          # Mount workspace to persist sync_state.json created by the container
+          docker run \
+            -e GEMINI_API_KEY="$GEMINI_API_KEY" \
+            -v ${{ github.workspace }}:/app \
+            optibot-scraper
+
+      - name: Save sync state cache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: sync_state.json
+          key: optibot-state-${{ github.run_id }}
