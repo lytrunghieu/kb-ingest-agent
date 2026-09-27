@@ -22,7 +22,7 @@ SYSTEM_PROMPT = """You are OptiBot, the customer-support bot for OptiSigns.com.
 
 def upload_to_gemini(filepath):
     print(f"Uploading {filepath} to Gemini...")
-    uploaded_file = genai.upload_file(path=filepath)
+    uploaded_file = genai.upload_file(path=filepath, mime_type="text/plain")
     # Wait briefly to let the file process
     while uploaded_file.state.name == "PROCESSING":
         print(".", end="", flush=True)
@@ -75,17 +75,25 @@ def main():
             system_instruction=SYSTEM_PROMPT
         )
         
-        # Load all available files into chat history
-        history = []
+        # Load all available files into a single user turn
+        valid_file_parts = []
         for name, uri in gemini_files.items():
             try:
                 gfile = genai.get_file(uri)
-                history.append({"role": "user", "parts": [gfile]})
+                valid_file_parts.append(gfile)
             except Exception:
                 pass # skip if expired
                 
-        history.append({"role": "user", "parts": ["I have uploaded the knowledge base. Please acknowledge."]})
-        history.append({"role": "model", "parts": ["Acknowledged. I am OptiBot. How can I help you?"]})
+        history = [
+            {
+                "role": "user",
+                "parts": valid_file_parts + ["I have uploaded the knowledge base. Please acknowledge."]
+            },
+            {
+                "role": "model",
+                "parts": ["Acknowledged. I am OptiBot. How can I help you?"]
+            }
+        ]
         
         chat = model.start_chat(history=history)
         response = chat.send_message("How do I add a YouTube video?")
